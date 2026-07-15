@@ -1,0 +1,8 @@
+# Blender sources and legacy pre-rendered frames (not needed by the site)
+*.blend
+*.blend1
+frames/
+
+# Local dev utilities
+glb_nodes.js
+user_start_pose.json

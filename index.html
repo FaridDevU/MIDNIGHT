@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MIDNIGHT — 真夜中の刀</title>
+<style>
+  :root {
+    --bg: #0c0906;
+    --ink: #e8ddc8;
+    --ink-dim: #8f8268;
+    --accent: #4da6ff;
+    --accent-warm: #b03a2e;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: var(--bg); }
+  body { color: var(--ink); font-family: 'Georgia', serif; overflow-x: hidden; cursor: none; }
+  a, button { cursor: none; }
+  ::selection { background: var(--accent); color: #000; }
+  .mono { font-family: 'Consolas', 'SF Mono', monospace; font-size: 0.62rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--ink-dim); }
+
+  #cursor { position: fixed; top: 0; left: 0; width: 34px; height: 34px; border: 1px solid rgba(232,221,200,0.45); border-radius: 50%; pointer-events: none; z-index: 999; transform: translate(-50%, -50%); transition: width 0.25s, height 0.25s, border-color 0.25s; }
+  #cursor::after { content: ''; position: absolute; top: 50%; left: 50%; width: 4px; height: 4px; background: var(--ink); border-radius: 50%; transform: translate(-50%, -50%); }
+  #cursor.hot { width: 56px; height: 56px; border-color: var(--accent); }
+  @media (pointer: coarse) { #cursor { display: none; } body, a, button { cursor: auto; } }
+
+  #ink { position: fixed; inset: 0; pointer-events: none; z-index: 95; mix-blend-mode: multiply; }
+  #grain { position: fixed; inset: -50%; width: 200%; height: 200%; pointer-events: none; z-index: 90; opacity: 0.05;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E");
+    animation: grain 0.9s steps(4) infinite; }
+  @keyframes grain { 0%{transform:translate(0,0)} 25%{transform:translate(-2%,3%)} 50%{transform:translate(3%,-2%)} 75%{transform:translate(-3%,-3%)} 100%{transform:translate(2%,2%)} }
+
+  header { position: fixed; top: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between; padding: 1.4rem 2rem; z-index: 80; mix-blend-mode: difference; }
+  #brand { display: flex; align-items: baseline; gap: 0.7rem; }
+  #brand .sword { font-size: 1.5rem; }
+  #brand .name { font-size: 1.05rem; letter-spacing: 0.42em; font-family: system-ui, sans-serif; font-weight: 600; }
+
+  #bar { position: fixed; top: 0; left: 0; height: 2px; width: 100%; transform-origin: left; transform: scaleX(0); background: linear-gradient(90deg, var(--accent-warm), var(--accent)); z-index: 95; }
+
+  #stage { height: 1000vh; position: relative; }
+  #sticky { position: sticky; top: 0; height: 100vh; overflow: hidden; }
+  #gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #sticky::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 52%, rgba(0,0,0,0.6) 100%); }
+
+  #hero-title { position: absolute; left: 50%; top: 12vh; transform: translateX(-50%); z-index: 50; text-align: center; pointer-events: none; white-space: nowrap; }
+  #hero-title h1 {
+    font-size: clamp(3.6rem, 12vw, 11rem);
+    font-weight: 400;
+    letter-spacing: 0.14em;
+    line-height: 0.95;
+    color: #f2e8d0;
+    text-shadow:
+      0 2px 4px rgba(0, 0, 0, 0.55),
+      0 10px 34px rgba(0, 0, 0, 0.75),
+      0 22px 70px rgba(0, 0, 0, 0.55);
+    animation: breathe 5s ease-in-out infinite;
+  }
+  @keyframes breathe {
+    0%, 100% { filter: drop-shadow(0 0 26px rgba(77, 166, 255, 0.10)); }
+    50% { filter: drop-shadow(0 0 52px rgba(77, 166, 255, 0.30)); }
+  }
+  #hero-title h1 .c { display: inline-block; opacity: 0; transform: translateY(0.35em) rotate(4deg); }
+
+  #kanji-wm { position: absolute; right: 4vw; top: 50%; transform: translateY(-50%); writing-mode: vertical-rl; font-size: clamp(3rem, 7vw, 6rem); color: rgba(232,221,200,0.06); letter-spacing: 0.32em; z-index: 4; pointer-events: none; user-select: none; }
+
+  .caption { position: absolute; z-index: 6; max-width: 36ch; opacity: 0; pointer-events: none; }
+  .caption .tag { font-family: 'Consolas', monospace; font-size: 0.66rem; letter-spacing: 0.5em; text-transform: uppercase; color: var(--accent); margin-bottom: 1rem; }
+  .caption.warm .tag { color: var(--accent-warm); }
+  .caption h2 { font-size: clamp(1.9rem, 4.4vw, 3.6rem); font-weight: 400; line-height: 1.12; }
+  .caption h2 .c { display: inline-block; }
+  .w { display: inline-block; white-space: nowrap; }
+  .caption p { margin-top: 1rem; font-size: clamp(0.92rem, 1.3vw, 1.06rem); line-height: 1.75; color: var(--ink-dim); }
+  /* Anchored near the vertical center; the render loop adds a subtle drift and fade. */
+  #cap-1, #cap-3, #cap-7, #cap-6 { left: 8vw; top: 38%; }
+  #cap-2, #cap-4, #cap-5 { right: 8vw; top: 38%; text-align: right; }
+
+  #loader { position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.6rem; z-index: 200; transition: opacity 0.9s ease, visibility 0.9s; }
+  #loader.done { opacity: 0; visibility: hidden; }
+  #loader .kanji { font-size: 4.5rem; color: var(--ink-dim); animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: 0.3; } }
+
+  #outro { display: flex; justify-content: space-between; align-items: center; padding: 0.85rem 2rem;
+    font-family: 'Consolas', monospace; font-size: 0.64rem; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--ink-dim); border-top: 1px solid rgba(232,221,200,0.08); }
+  #outro a { color: var(--ink-dim); text-decoration: none; transition: color 0.25s; }
+  #outro a:hover { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<div id="cursor"></div>
+<canvas id="ink"></canvas>
+<div id="grain"></div>
+<div id="bar"></div>
+
+<div id="loader">
+  <div class="kanji">刀</div>
+  <div id="loadpct" class="mono">0%</div>
+</div>
+
+<header>
+  <div id="brand"><span class="sword">刀</span><span class="name">MIDNIGHT</span></div>
+</header>
+
+<div id="stage">
+  <div id="sticky">
+    <canvas id="gl"></canvas>
+    <div id="kanji-wm">真夜中の刀</div>
+
+    <div id="hero-title">
+      <h1 id="split-title">MIDNIGHT</h1>
+    </div>
+
+    <div class="caption" id="cap-1"><div class="tag">Stillness — 静寂</div><h2>In stillness, it waits.</h2><p>A one-of-a-kind katana sleeps on volcanic rock. Keep scrolling: the steel is about to wake.</p></div>
+    <div class="caption" id="cap-2"><div class="tag">Ascension — 上昇</div><h2>The blade rises on its own.</h2><p>Watch the stand: it crumbles to sand beneath her. Nothing holds her now.</p></div>
+    <div class="caption" id="cap-3"><div class="tag">The edge — 刃文</div><h2>Come close to the edge.</h2><p>1600 layers of folded steel. The waving line is the hamon: the scar of the fire that tempered her.</p></div>
+    <div class="caption" id="cap-4"><div class="tag">Ignition — 青き炎</div><h2>The steel remembers the forge.</h2><p>Blue fire runs the blade from guard to tip. It burns without consuming.</p></div>
+    <div class="caption" id="cap-7"><div class="tag">Spirit — 魂</div><h2>Blade and sheath, face to face.</h2><p>The saya returns from the void and they spin together, bound by something older than steel.</p></div>
+    <div class="caption warm" id="cap-5"><div class="tag">The fall — 一撃</div><h2>A single cut.</h2><p>The stone returns to receive her. The whole weight of the sky on the tip.</p></div>
+    <div class="caption" id="cap-6"><div class="tag">Legend — 伝説</div><h2>Planted, she remains.</h2><p>Burning blue upon the rock. Waiting for a hand worthy of her.</p></div>
+
+  </div>
+</div>
+
+<footer id="outro">
+  <span>MIDNIGHT © 2026 — All rights reserved</span>
+  <a href="https://github.com/FaridDevU" target="_blank" rel="noopener">github.com/FaridDevU</a>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/lenis@1.1.14/dist/lenis.min.js"></script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
+
+const $ = s => document.querySelector(s);
+const loader = $('#loader'), loadpct = $('#loadpct');
+
+// Surface runtime errors in the loader and the tab title (headless test support).
+addEventListener('error', e => { loadpct.textContent = 'ERR: ' + e.message; document.title = 'ERR: ' + e.message; });
+addEventListener('unhandledrejection', e => { loadpct.textContent = 'REJ: ' + e.reason; document.title = 'REJ: ' + e.reason; });
+
+// ---------- text splitting ----------
+// Wraps each word in a non-breaking span and each letter in its own span for staggered reveals.
+function split(el) {
+  const words = el.textContent.split(' '); el.textContent = '';
+  const out = [];
+  words.forEach((word, i) => {
+    const w = document.createElement('span'); w.className = 'w';
+    for (const ch of word) { const s = document.createElement('span'); s.className = 'c'; s.textContent = ch; w.appendChild(s); out.push(s); }
+    el.appendChild(w);
+    if (i < words.length - 1) el.appendChild(document.createTextNode(' '));
+  });
+  return out;
+}
+const titleChars = split($('#split-title'));
+document.querySelectorAll('.caption h2').forEach(h => split(h));
+
+// ---------- custom cursor ----------
+const cursorEl = $('#cursor');
+addEventListener('mousemove', e => gsap.to(cursorEl, { x: e.clientX, y: e.clientY, duration: 0.35, ease: 'power3.out' }));
+document.querySelectorAll('a, button').forEach(el => {
+  el.addEventListener('mouseenter', () => cursorEl.classList.add('hot'));
+  el.addEventListener('mouseleave', () => cursorEl.classList.remove('hot'));
+});
+
+// ---------- sumi-e ink trail ----------
+// The cursor leaves brush stamps on a 2D canvas that bleed and fade like ink on washi paper.
+const inkCanvas = $('#ink');
+const inkCtx = inkCanvas.getContext('2d');
+function inkResize() {
+  inkCanvas.width = innerWidth * devicePixelRatio;
+  inkCanvas.height = innerHeight * devicePixelRatio;
+  inkCtx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+}
+inkResize();
+addEventListener('resize', inkResize);
+const stamps = [];
+let inkLast = null;
+
+function stamp(x, y, angle, radius) {
+  stamps.push({
+    x: x + (Math.random() - 0.5) * 2, y: y + (Math.random() - 0.5) * 2,
+    a: angle, r: radius * (0.85 + Math.random() * 0.3),
+    stretch: 1.25 + Math.random() * 0.4,           // ellipse elongated along the stroke
+    life: 1, decay: 0.55 + Math.random() * 0.25,
+  });
+}
+
+addEventListener('mousemove', e => {
+  const px = e.clientX, py = e.clientY;
+  if (!inkLast) { inkLast = { x: px, y: py }; return; }
+  const dx = px - inkLast.x, dy = py - inkLast.y, d = Math.hypot(dx, dy);
+  if (d < 7) return;
+  const angle = Math.atan2(dy, dx);
+  // Brush dynamics: a fast stroke runs thin and dry, a slow one pools thick.
+  const radius = Math.min(14, Math.max(3.5, 15 - d * 0.14));
+  const steps = Math.min(4, Math.ceil(d / 9));     // intermediate stamps keep the stroke continuous
+  for (let i = 1; i <= steps; i++)
+    stamp(inkLast.x + dx * i / steps, inkLast.y + dy * i / steps, angle, radius);
+  if (Math.random() < 0.12) {                      // occasional dry splatter
+    const sa = angle + (Math.random() - 0.5) * 1.2, sd = 18 + Math.random() * 34;
+    stamp(px + Math.cos(sa) * sd, py + Math.sin(sa) * sd, sa, 1 + Math.random() * 1.8);
+  }
+  inkLast = { x: px, y: py };
+  if (stamps.length > 400) stamps.splice(0, stamps.length - 400);
+});
+
+function drawInk(dt) {
+  inkCtx.clearRect(0, 0, innerWidth, innerHeight);
+  for (let i = stamps.length - 1; i >= 0; i--) {
+    const s = stamps[i];
+    s.life -= dt * s.decay;
+    if (s.life <= 0) { stamps.splice(i, 1); continue; }
+    const bleed = 1 + (1 - s.life) * 0.7;          // ink spreads into the paper as it dies
+    const alpha = 0.42 * Math.pow(s.life, 1.6);
+    const r = s.r * bleed;
+    inkCtx.save();
+    inkCtx.translate(s.x, s.y);
+    inkCtx.rotate(s.a);
+    inkCtx.beginPath();                            // stroke body
+    inkCtx.ellipse(0, 0, r * s.stretch, r, 0, 0, 6.2832);
+    inkCtx.fillStyle = `rgba(16,13,11,${alpha})`;
+    inkCtx.fill();
+    inkCtx.beginPath();                            // soft halo: bleed into the paper
+    inkCtx.ellipse(0, 0, r * s.stretch * 1.55, r * 1.55, 0, 0, 6.2832);
+    inkCtx.fillStyle = `rgba(16,13,11,${alpha * 0.22})`;
+    inkCtx.fill();
+    inkCtx.restore();
+  }
+}
+// Headless test hook: #ink seeds a persistent sample stroke.
+if (location.hash.includes('ink'))
+  for (let i = 0; i < 60; i++) {
+    const t = i / 59, x = 220 + t * 1100, y = 420 + Math.sin(t * 6.3) * 150;
+    stamp(x, y, Math.cos(t * 6.3), 4 + Math.sin(t * 3.1) * 7 + 7);
+    stamps[stamps.length - 1].decay = 0.0001;
+  }
+
+// ---------- renderer & scene ----------
+const canvas = $('#gl');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(7.8, innerWidth / innerHeight, 0.01, 50);
+RectAreaLightUniformsLib.init();
+
+// Blender Z-up to three.js Y-up: (x, y, z) -> (x, z, -y).
+const B = (x, y, z) => new THREE.Vector3(x, z, -y);
+camera.position.copy(B(0, -2.18, 0.10));
+const camTarget = B(0, 0.60, 0.17);
+camera.lookAt(camTarget);
+
+// ---------- lights (mirroring the Blender setup) ----------
+function rect(w, h, intensity, color, pos, look) {
+  const l = new THREE.RectAreaLight(color, intensity, w, h);
+  l.position.copy(pos); l.lookAt(look);
+  scene.add(l); return l;
+}
+rect(1.0, 0.2, 18, 0xfff2da, B(0.02, 0.15, 0.75), B(0.02, 0.70, 0.17));            // key strip
+const rim = rect(0.65, 0.65, 12, 0xffb87a, B(0.49, 1.12, 0.72), B(0.02, 0.70, 0.17));
+rect(0.7, 1.15, 9, 0x9ec2ff, B(-0.73, -0.56, 0.58), B(0.02, 0.70, 0.16));          // cool rake
+rect(3.0, 1.4, 3, 0xfff3e0, B(0, -2.0, 0.55), B(0.02, 0.70, 0.14));                // soft fill
+const spot = new THREE.SpotLight(0xffffff, 35, 0, 0.5, 0.6, 1.6);
+spot.position.copy(B(1.71, 0.24, 2.26));
+spot.target.position.copy(B(0.3, 1.8, 0.3));
+scene.add(spot, spot.target);
+
+// ---------- asset loading ----------
+const manager = new THREE.LoadingManager();
+manager.onProgress = (url, loaded, total) => loadpct.textContent = Math.round(loaded / total * 100) + '%';
+const pmrem = new THREE.PMREMGenerator(renderer);
+
+let katanaGroup, idleGroup, bladeMesh, saya, stand, rockTopY = 0.1;
+let shock, rockMesh, flightPath;
+let sayaGroup, sayaRestPos = new THREE.Vector3(), sayaRestQuat = new THREE.Quaternion();
+const wallMats = [];
+const standDissolve = { value: 0 };
+const sayaDissolve = { value: 0 };
+const rockDissolve = { value: 0 };
+const fireCoreUniforms = { time: { value: 0 }, intensity: { value: 0 }, puff: { value: 0.012 }, scale: { value: 60 }, alphaMul: { value: 1.0 } };
+const fireAuraUniforms = { time: { value: 0 }, intensity: { value: 0 }, puff: { value: 0.045 }, scale: { value: 24 }, alphaMul: { value: 0.45 } };
+
+const firstMesh = obj => { let m = null; obj.traverse(o => { if (o.isMesh && !m) m = o; }); return m; };
+
+new RGBELoader(manager).load('assets/env.hdr', hdr => {
+  scene.environment = pmrem.fromEquirectangular(hdr).texture;
+  hdr.dispose();
+});
+
+new GLTFLoader(manager).load('assets/scene.glb', gltf => { try {
+  const root = gltf.scene;
+  scene.add(root);
+  const byName = {};
+  root.traverse(o => { byName[o.name] = o; });
+
+  const blade = byName['K_Blade'], tsuba = byName['K_Tsuba'], handle = byName['K_Handle'];
+  saya = byName['Saya_new']; stand = byName['Stand_new'];
+  bladeMesh = blade;
+
+  // Materials. The blade feeds its albedo into the roughness map: bright hamon
+  // zones render misty while the polished steel stays mirror-sharp.
+  blade.traverse(o => { if (o.isMesh) {
+    o.material = new THREE.MeshPhysicalMaterial({
+      color: 0xd9dee6, metalness: 1.0, roughness: 1.0,
+      roughnessMap: o.material.map || null,
+      envMapIntensity: 1.0,
+    });
+  }});
+  tsuba.traverse(o => { if (o.isMesh) {
+    o.material = new THREE.MeshPhysicalMaterial({ map: o.material.map, color: 0xffffff, metalness: 0.95, roughness: 0.38, envMapIntensity: 1.2 });
+  }});
+  handle.traverse(o => { if (o.isMesh) {
+    o.material = new THREE.MeshPhysicalMaterial({ map: o.material.map, color: 0xffffff, metalness: 0.15, roughness: 0.6, envMapIntensity: 0.8 });
+  }});
+  // Urushi lacquer for the saya and stand.
+  const lacquer = (src, tint) => new THREE.MeshPhysicalMaterial({
+    map: src.map || null, color: src.map ? 0xffffff : tint, metalness: 0.0, roughness: 0.32,
+    clearcoat: 1.0, clearcoatRoughness: 0.07, envMapIntensity: 1.3,
+  });
+  saya.traverse(o => { if (o.isMesh) o.material = lacquer(o.material, 0x0c0d10) });
+  stand.traverse(o => { if (o.isMesh) o.material = new THREE.MeshPhysicalMaterial({
+    color: 0x0b0b0e, metalness: 0.0, roughness: 0.28,
+    clearcoat: 1.0, clearcoatRoughness: 0.06, envMapIntensity: 1.4,
+  }); });
+
+  // Katana rig: a group at the piece's centroid so choreography rotates it cleanly,
+  // plus an inner group for the idle motion layer.
+  katanaGroup = new THREE.Group();
+  idleGroup = new THREE.Group();
+  scene.add(katanaGroup);
+  katanaGroup.add(idleGroup);
+  const box = new THREE.Box3().setFromObject(blade);
+  const center = box.getCenter(new THREE.Vector3());
+  new THREE.Box3().setFromObject(handle).union(box).getCenter(center);
+  katanaGroup.position.copy(center);
+  [blade, tsuba, handle].forEach(o => idleGroup.attach(o));
+
+  restPos.copy(katanaGroup.position);
+  restPos.y -= 0.05;                     // follow the ensemble DROP below
+  katanaGroup.position.copy(restPos);
+  restQuat.copy(katanaGroup.quaternion);
+
+  // Saya rig centered on its bounding box so it can spin cleanly.
+  sayaGroup = new THREE.Group();
+  scene.add(sayaGroup);
+  const sayaBox = new THREE.Box3().setFromObject(saya);
+  sayaGroup.position.copy(sayaBox.getCenter(new THREE.Vector3()));
+  sayaGroup.attach(saya);
+  sayaRestPos.copy(sayaGroup.position);
+  sayaRestPos.y -= 0.05;
+  sayaGroup.position.copy(sayaRestPos);
+  sayaRestQuat.copy(sayaGroup.quaternion);
+
+  // Lower the whole ensemble slightly so the rock sits naturally in frame.
+  // The rock's top face receives the final plunge.
+  const DROP = 0.05;
+  const rock = byName['ROCK'];
+  if (rock) {
+    rock.position.y -= DROP;
+    rockTopY = new THREE.Box3().setFromObject(rock).max.y;
+  }
+  stand.position.y -= DROP;
+
+  // Granite maps extracted from the original Blender material.
+  const texLoader = new THREE.TextureLoader();
+  const rockMap = texLoader.load('assets/rock_diffuse.png');
+  rockMap.flipY = false; rockMap.colorSpace = THREE.SRGBColorSpace;
+  const rockNormal = texLoader.load('assets/rock_normal.png');
+  rockNormal.flipY = false;
+  rockMesh = rock;
+  if (rock) rock.traverse(o => { if (o.isMesh) {
+    o.material = new THREE.MeshStandardMaterial({
+      map: rockMap, normalMap: rockNormal, roughness: 0.92, metalness: 0.0, envMapIntensity: 0.25,
+    });
+  }});
+
+  // Enlarge the painted wall so it covers the frustum at every camera pose.
+  const wall = byName['Japanese_Web_Background'];
+  if (wall) {
+    const before = new THREE.Box3().setFromObject(wall).getCenter(new THREE.Vector3());
+    wall.scale.multiplyScalar(1.7);
+    const after = new THREE.Box3().setFromObject(wall).getCenter(new THREE.Vector3());
+    wall.position.add(before.sub(after));
+    // The glTF wall material is emissive-driven: store color and emissive so both dim together.
+    wall.traverse(o => { if (o.isMesh) wallMats.push({
+      m: o.material,
+      c: o.material.color.clone(),
+      e: o.material.emissive ? o.material.emissive.clone() : null,
+      ei: o.material.emissiveIntensity !== undefined ? o.material.emissiveIntensity : null,
+    }); });
+  }
+
+  // Sand-dissolve shader injection. Each prop has its own uniform:
+  // the stand dissolves for good, the saya and the rock rematerialize later.
+  [saya, stand, rock].forEach(g => g.traverse(o => { if (o.isMesh) {
+    const m = o.material;
+    const uni = (g === saya) ? sayaDissolve : (g === rock ? rockDissolve : standDissolve);
+    m.onBeforeCompile = sh => {
+      sh.uniforms.uDiss = uni;
+      sh.vertexShader = 'varying vec3 vWp;\n' + sh.vertexShader.replace(
+        '#include <begin_vertex>',
+        '#include <begin_vertex>\nvWp = (modelMatrix * vec4(position, 1.0)).xyz;');
+      sh.fragmentShader = 'uniform float uDiss; varying vec3 vWp;\n' + sh.fragmentShader
+        .replace('#include <clipping_planes_fragment>',
+          `#include <clipping_planes_fragment>
+           float dn = fract(sin(dot(floor(vWp * 240.0), vec3(12.9898, 78.233, 45.164))) * 43758.5453);
+           if (dn < uDiss) discard;`)
+        .replace('#include <dithering_fragment>',
+          `#include <dithering_fragment>
+           if (uDiss > 0.001 && dn < uDiss + 0.07) gl_FragColor.rgb += vec3(0.35, 0.7, 1.0) * 1.6;`);
+    };
+    m.needsUpdate = true;
+  }}));
+
+  buildFire(blade);
+  buildEmbers();
+  buildShock();
+  start();
+} catch (err) { loadpct.textContent = 'ERR: ' + err.message; document.title = 'ERR: ' + err.message; console.error(err); } });
+
+// ---------- blue fire ----------
+const FIRE_VERT = `
+uniform float puff;
+varying vec3 vPos; varying vec3 vNrm; varying vec3 vView;
+void main() {
+  vec3 p = position + normal * puff;
+  vPos = position;
+  vNrm = normalize(normalMatrix * normal);
+  vec4 mv = modelViewMatrix * vec4(p, 1.0);
+  vView = normalize(-mv.xyz);
+  gl_Position = projectionMatrix * mv;
+}`;
+const FIRE_FRAG = `
+uniform float time; uniform float intensity; uniform float scale; uniform float alphaMul;
+varying vec3 vPos; varying vec3 vNrm; varying vec3 vView;
+float hash(vec3 p){ p=fract(p*0.3183099+.1); p*=17.0; return fract(p.x*p.y*p.z*(p.x+p.y+p.z)); }
+float noise(vec3 x){ vec3 i=floor(x); vec3 f=fract(x); f=f*f*(3.0-2.0*f);
+  return mix(mix(mix(hash(i),hash(i+vec3(1,0,0)),f.x),mix(hash(i+vec3(0,1,0)),hash(i+vec3(1,1,0)),f.x),f.y),
+             mix(mix(hash(i+vec3(0,0,1)),hash(i+vec3(1,0,1)),f.x),mix(hash(i+vec3(0,1,1)),hash(i+vec3(1,1,1)),f.x),f.y),f.z); }
+float fbm(vec3 p){ float a=0.5,r=0.0; for(int i=0;i<4;i++){ r+=a*noise(p); p*=2.1; a*=0.5; } return r; }
+void main() {
+  if (intensity <= 0.001) discard;
+  vec3 q = vPos * scale;
+  q.x -= time * 3.2;         // flames flow toward the tip
+  q.y += time * 1.1;
+  float n = fbm(q);
+  float fres = pow(1.0 - abs(dot(normalize(vNrm), normalize(vView))), 1.4);
+  float m = smoothstep(0.42, 0.75, n) * fres;
+  float core = smoothstep(0.6, 0.95, n) * fres;
+  vec3 col = mix(vec3(0.02, 0.18, 1.0), vec3(0.35, 0.85, 1.0), core);
+  col = mix(col, vec3(0.9, 0.98, 1.0), core * core);
+  float a = m * clamp(intensity * 0.12, 0.0, 1.0) * alphaMul;
+  gl_FragColor = vec4(col * intensity * m, a);
+}`;
+function fireMaterial(uniforms) {
+  return new THREE.ShaderMaterial({
+    uniforms, vertexShader: FIRE_VERT, fragmentShader: FIRE_FRAG,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+  });
+}
+// Two shells over the blade geometry: a tight core and a wider, softer aura.
+function buildFire(blade) {
+  const host = firstMesh(blade);
+  host.add(new THREE.Mesh(host.geometry, fireMaterial(fireCoreUniforms)));
+  host.add(new THREE.Mesh(host.geometry, fireMaterial(fireAuraUniforms)));
+}
+
+// ---------- embers ----------
+const emberUniforms = { time: { value: 0 }, intensity: { value: 0 } };
+function buildEmbers() {
+  const COUNT = 350;
+  const pos = new Float32Array(COUNT * 3), seed = new Float32Array(COUNT);
+  const size = new THREE.Box3().setFromObject(bladeMesh).getSize(new THREE.Vector3());
+  for (let i = 0; i < COUNT; i++) {
+    pos[i*3]   = (Math.random() - 0.5) * size.x * 1.1;
+    pos[i*3+1] = (Math.random() - 0.5) * size.y * 3.0;
+    pos[i*3+2] = (Math.random() - 0.5) * size.z * 6.0;
+    seed[i] = Math.random();
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geometry.setAttribute('seed', new THREE.BufferAttribute(seed, 1));
+  const material = new THREE.ShaderMaterial({
+    uniforms: emberUniforms, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    vertexShader: `
+      uniform float time; uniform float intensity; attribute float seed;
+      varying float vA;
+      void main() {
+        float life = fract(time * (0.12 + seed * 0.2) + seed * 7.0);
+        vec3 p = position;
+        p.y += life * 0.35;
+        p.x += sin((time + seed * 20.0) * 2.0) * 0.015;
+        vA = (1.0 - life) * intensity * (0.4 + 0.6 * fract(seed * 13.7));
+        vec4 mv = modelViewMatrix * vec4(p, 1.0);
+        gl_PointSize = (2.0 + seed * 3.0) * (1.0 / -mv.z);
+        gl_PointSize = clamp(gl_PointSize * 140.0, 1.0, 7.0);
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: `
+      varying float vA;
+      void main() {
+        vec2 d = gl_PointCoord - 0.5;
+        float r = smoothstep(0.5, 0.0, length(d));
+        gl_FragColor = vec4(vec3(0.35, 0.75, 1.0) * 2.2, r * vA);
+      }`,
+  });
+  const embers = new THREE.Points(geometry, material);
+  embers.frustumCulled = false;
+  firstMesh(bladeMesh).add(embers);
+}
+
+// ---------- impact shockwave ----------
+const shockUniforms = { intensity: { value: 0 } };
+function buildShock() {
+  const geometry = new THREE.RingGeometry(0.7, 1.0, 64);
+  const material = new THREE.ShaderMaterial({
+    uniforms: shockUniforms, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+    vertexShader: `void main(){ gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+    fragmentShader: `uniform float intensity; void main(){ gl_FragColor = vec4(vec3(0.3,0.75,1.0)*intensity*3.0, intensity*0.8); }`,
+  });
+  shock = new THREE.Mesh(geometry, material);
+  shock.rotation.x = -Math.PI / 2;
+  shock.visible = false;
+  scene.add(shock);
+}
+
+// ---------- choreography ----------
+const restPos = new THREE.Vector3(), restQuat = new THREE.Quaternion();
+const SPIN_AXIS = new THREE.Vector3(0.949, 0, -0.316).normalize();  // true long axis of the pieces (18.4° baked yaw)
+const E = (x, y, z, order = 'XYZ') => new THREE.Quaternion().setFromEuler(new THREE.Euler(x, y, z, order));
+const D = THREE.MathUtils.degToRad;
+const lerp = THREE.MathUtils.lerp;
+const smooth = t => t * t * (3 - 2 * t);
+
+// Evaluates the full scene state for a scroll progress p in [0, 1].
+// Phases: rest 0–.05 | lift .05–.20 | approach .20–.34 | edge macro .34–.40 |
+// ignition & retreat .40–.52 | spirit .52–.68 | the fall .68–.78 | legend .78–1
+function pose(p) {
+  const near = new THREE.Vector3(0.02, 0.13, 0.85);
+  const lifted = restPos.clone().add(new THREE.Vector3(0, 0.14, 0));
+  const spiritPos = new THREE.Vector3(0.02, 0.295, -0.30);    // katana, upper position
+  const spiritSaya = new THREE.Vector3(0.02, 0.075, -0.30);   // saya, below the katana
+  const planted = new THREE.Vector3(0.0, 0.19, -0.60);
+  const plungeTop = new THREE.Vector3(0.0, 0.46, -0.60);
+
+  const qRest = restQuat.clone();
+  const qEdge = E(D(-64), D(6), D(4));
+  const qFace = E(D(-18), D(2), D(1));
+  const qVert = E(0, 0, D(90), 'ZYX');   // tip pointing down
+  let P = new THREE.Vector3(), Q = new THREE.Quaternion(),
+      fire = 0, shockI = 0, camPull = 0, wallDim = 0,
+      hideProps = 0, hideSaya = 0, camRise = 0, idleAmp = 1,
+      sayaP = null, sayaQ = null;
+
+  if (!flightPath) flightPath = new THREE.CatmullRomCurve3([
+    near.clone().add(new THREE.Vector3(0.06, 0.005, 0)),
+    new THREE.Vector3(0.02, 0.24, -0.05),
+    spiritPos,
+  ], false, 'catmullrom', 0.4);
+
+  if (p < 0.05) { P.copy(restPos); Q.copy(qRest); idleAmp = 0; }
+  else if (p < 0.20) {
+    const t = smooth((p - 0.05) / 0.15);
+    P.lerpVectors(restPos, lifted, t); Q.copy(qRest);
+    hideProps = t; hideSaya = t; idleAmp = t;
+  }
+  else if (p < 0.34) {
+    const t = smooth((p - 0.20) / 0.14);
+    P.lerpVectors(lifted, near, t); Q.slerpQuaternions(qRest, qEdge, t);
+    wallDim = t; hideProps = 1; hideSaya = 1;
+  }
+  else if (p < 0.40) {
+    const t = (p - 0.34) / 0.06;
+    P.copy(near).add(new THREE.Vector3(0.06 * t, 0.005 * t, 0));
+    Q.slerpQuaternions(qEdge, qFace, t);
+    wallDim = 1; hideProps = 1; hideSaya = 1;
+    fire = t * 0.4;                      // ignites during the macro shot, no model-swap feel
+  }
+  else if (p < 0.52) {
+    const t = (p - 0.40) / 0.12;
+    P.copy(flightPath.getPoint(t));
+    Q.slerpQuaternions(qFace, qRest, t);
+    fire = 0.4 + 0.6 * t;
+    wallDim = 1; hideProps = 1; hideSaya = 1;
+  }
+  else if (p < 0.68) {
+    // Spirit: katana above, saya below, both spinning on their long axis with the scroll.
+    const t = (p - 0.52) / 0.16;
+    const spin = t * Math.PI * 2.0;      // one full revolution
+    const spinQ = new THREE.Quaternion().setFromAxisAngle(SPIN_AXIS, spin);
+    P.copy(spiritPos);
+    Q.copy(spinQ).multiply(qRest);
+    fire = lerp(1, 0.55, Math.min(t * 3, 1));
+    wallDim = 1; hideProps = 1; idleAmp = 0.4;
+    hideSaya = t < 0.15 ? 1 - t / 0.15 : (t > 0.82 ? (t - 0.82) / 0.18 : 0);
+    sayaP = spiritSaya;
+    sayaQ = spinQ.clone().multiply(sayaRestQuat);
+  }
+  else if (p < 0.78) {
+    const t = (p - 0.68) / 0.10;
+    if (t < 0.5) {
+      const u = t / 0.5;
+      P.lerpVectors(spiritPos, plungeTop, smooth(u));
+      Q.slerpQuaternions(qRest, qVert, u);
+      camRise = u;
+    } else {
+      const u = (t - 0.5) / 0.5;
+      const drop = smooth(u);
+      P.lerpVectors(plungeTop, planted, drop * drop); Q.copy(qVert);
+      shockI = u > 0.85 ? (u - 0.85) * 6.7 : 0;
+      camRise = 1;
+    }
+    fire = 1 + (t > 0.9 ? (t - 0.9) * 6 : 0);
+    wallDim = 0.72; hideProps = 1; hideSaya = 1;
+    idleAmp = t < 0.5 ? 0.3 : 0;         // once planted, motionless
+  }
+  else {
+    const t = smooth((p - 0.78) / 0.22);
+    P.copy(planted); Q.copy(qVert);
+    fire = lerp(1.6, 1.0, t); shockI = Math.max(0, 1 - t * 3);
+    camPull = t; wallDim = lerp(0.72, 0.25, t); hideProps = 1; hideSaya = 1; camRise = 1 - t;
+    idleAmp = 0;
+  }
+  // The rock dissolves with the lift and rematerializes just in time to receive the plunge.
+  const hideRock = p < 0.05 ? 0
+    : p < 0.20 ? smooth((p - 0.05) / 0.15)
+    : p < 0.655 ? 1
+    : p < 0.68 ? 1 - (p - 0.655) / 0.025
+    : 0;
+  // Crash-cam weight for the plunge.
+  let impact = 0;
+  if (p >= 0.68 && p < 0.78) {
+    const t = (p - 0.68) / 0.10;
+    impact = t > 0.5 ? smooth((t - 0.5) / 0.5) : 0;
+  } else if (p >= 0.78) {
+    impact = Math.max(0, 1 - ((p - 0.78) / 0.22) * 2.5);
+  }
+  return { P, Q, fire, shockI, camPull, wallDim, hideProps, hideSaya, hideRock, impact, camRise, idleAmp, sayaP, sayaQ };
+}
+
+// ---------- post-processing ----------
+let composer;
+function buildComposer() {
+  composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.45, 0.6, 1.0));
+  composer.addPass(new OutputPass());
+}
+
+function resize() {
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  renderer.setPixelRatio(dpr);
+  renderer.setSize(innerWidth, innerHeight);
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  if (composer) composer.setSize(innerWidth, innerHeight);
+}
+addEventListener('resize', resize);
+
+// ---------- scroll state ----------
+const scroll = { p: 0, target: 0 };
+const captions = [];
+const MAX_VEL = 0.22;      // max progress per second: a fast flick still plays at cinematic pace
+const CHASE = 3.2;         // exponential smoothing factor for the damped chase
+const progressBar = $('#bar');
+
+function start() {
+  buildComposer();
+  resize();
+  loader.classList.add('done');
+  if (location.hash.includes('test')) loader.style.display = 'none';
+  gsap.to(titleChars, { opacity: 1, y: 0, rotate: 0, duration: 1.1, stagger: 0.045, ease: 'power3.out', delay: 0.4 });
+
+  const lenis = new Lenis({ lerp: 0.085, smoothWheel: true });
+  lenis.on('scroll', ScrollTrigger.update);
+  gsap.ticker.add(t => lenis.raf(t * 1000));
+  gsap.ticker.lagSmoothing(0);
+  gsap.registerPlugin(ScrollTrigger);
+
+  // Scrolling only sets the target; the render loop chases it at a natural speed.
+  gsap.to(scroll, {
+    target: 1, ease: 'none',
+    scrollTrigger: { trigger: '#stage', start: 'top top', end: 'bottom bottom', scrub: 0.2 },
+  });
+
+  // Caption reveal timelines (tag, letters, paragraph), driven by damped progress.
+  const addCaption = (sel, enter, exit) => {
+    const el = document.querySelector(sel);
+    const tl = gsap.timeline({ paused: true })
+      .fromTo(el.querySelector('.tag'), { opacity: 0, letterSpacing: '1.1em' }, { opacity: 1, letterSpacing: '0.5em', duration: 0.55, ease: 'power2.out' }, 0)
+      .fromTo(el.querySelectorAll('h2 .c'), { opacity: 0, y: 30, rotate: 5 }, { opacity: 1, y: 0, rotate: 0, duration: 0.6, stagger: 0.028, ease: 'power3.out' }, 0.05)
+      .fromTo(el.querySelector('p'), { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.5, ease: 'power2.out' }, 0.2);
+    captions.push({ el, tl, enter, exit });
+  };
+  addCaption('#cap-1', 0.012, 0.045);
+  addCaption('#cap-2', 0.06, 0.17);
+  addCaption('#cap-3', 0.22, 0.37);
+  addCaption('#cap-4', 0.41, 0.50);
+  addCaption('#cap-7', 0.54, 0.655);
+  addCaption('#cap-5', 0.685, 0.765);
+  addCaption('#cap-6', 0.80, 0.985);
+
+  renderer.setAnimationLoop(tick);
+}
+
+// ---------- render loop ----------
+const clock = new THREE.Clock();
+const camBase = camera.position.clone();
+let prevT = 0;
+function tick() {
+  const t = clock.getElapsedTime();
+  const dt = Math.min(t - prevT, 0.05);
+  prevT = t;
+
+  // Damped chase with a velocity cap: fast or slow scrolling always feels natural.
+  const diff = scroll.target - scroll.p;
+  let step = diff * (1 - Math.exp(-dt * CHASE));
+  const maxStep = MAX_VEL * dt;
+  step = Math.max(-maxStep, Math.min(maxStep, step));
+  scroll.p += step;
+
+  // Headless test hook: #p=0.42 forces a fixed progress.
+  const forced = location.hash.match(/p=([\d.]+)/);
+  if (forced) scroll.p = parseFloat(forced[1]);
+
+  drawInk(dt);
+
+  // HUD, captions and title follow the damped progress.
+  progressBar.style.transform = `scaleX(${scroll.p})`;
+  for (const c of captions) {
+    const q = (scroll.p - c.enter) / (c.exit - c.enter);
+    if (q <= 0 || q >= 1) { gsap.set(c.el, { opacity: 0 }); continue; }
+    // Anchored with a subtle drift: reveal on entry, ~56px of total travel, short exit fade.
+    const fade = Math.min(q / 0.15, 1) * Math.min((1 - q) / 0.18, 1);
+    gsap.set(c.el, { opacity: fade, y: (0.5 - q) * 56 });
+    c.tl.progress(Math.min(1, q * 2.4));
+  }
+  const heroFade = Math.min(scroll.p / 0.06, 1);
+  gsap.set('#hero-title', { opacity: 1 - heroFade, y: -60 * heroFade });
+  gsap.set('#kanji-wm', { yPercent: -20 * scroll.p });
+
+  const { P, Q, fire, shockI, camPull, wallDim, hideProps, hideSaya, hideRock, impact, camRise, idleAmp, sayaP, sayaQ } = pose(scroll.p);
+
+  if (katanaGroup) {
+    katanaGroup.position.copy(P);
+    katanaGroup.quaternion.copy(Q);
+    // Idle life only while airborne; perfectly still on the stand and in the stone.
+    idleGroup.position.y = (Math.sin(t * 0.9) * 0.006 + Math.sin(t * 1.7) * 0.003) * idleAmp;
+    idleGroup.rotation.z = Math.sin(t * 0.55) * 0.008 * idleAmp;
+    idleGroup.rotation.x = Math.sin(t * 0.4) * 0.006 * idleAmp;
+  }
+  if (sayaGroup) {
+    if (sayaP) { sayaGroup.position.copy(sayaP); sayaGroup.quaternion.copy(sayaQ); }
+    else { sayaGroup.position.copy(sayaRestPos); sayaGroup.quaternion.copy(sayaRestQuat); }
+  }
+  fireCoreUniforms.time.value = t; fireAuraUniforms.time.value = t;
+  fireCoreUniforms.intensity.value = fire * 9.0;
+  fireAuraUniforms.intensity.value = fire * 5.0;
+  emberUniforms.time.value = t;
+  emberUniforms.intensity.value = THREE.MathUtils.clamp(fire, 0, 1);
+
+  if (shock) {
+    shock.visible = shockI > 0.01;
+    if (shock.visible) {
+      shock.position.set(0.0, rockTopY + 0.005, -0.60);   // energy ring on the stone
+      shock.scale.setScalar(0.15 + (1 - shockI) * 0.55);
+      shockUniforms.intensity.value = shockI;
+    }
+  }
+
+  // The background darkens for the edge macro and partially recovers at the end.
+  const dim = 1 - wallDim * 0.94;
+  for (const w of wallMats) {
+    w.m.color.setRGB(w.c.r * dim, w.c.g * dim, w.c.b * dim);
+    if (w.e) w.m.emissive.setRGB(w.e.r * dim, w.e.g * dim, w.e.b * dim);
+    if (w.ei !== null) w.m.emissiveIntensity = w.ei * dim;
+  }
+  spot.intensity = 35 * (1 - wallDim * 0.85);
+  rim.intensity = 12 * (1 - wallDim * 0.5);
+
+  // Sand dissolve: stand leaves for good; saya and rock come back.
+  standDissolve.value = hideProps;
+  sayaDissolve.value = hideSaya;
+  rockDissolve.value = hideRock;
+  if (saya) saya.visible = hideSaya < 0.995;
+  if (stand) stand.visible = hideProps < 0.995;
+  if (rockMesh) rockMesh.visible = hideRock < 0.995;
+
+  // Camera: slow push-in, rise before the plunge, crash-cam on impact, pull-back finale.
+  camera.position.x = camBase.x + impact * 0.28;
+  camera.position.y = camBase.y + camRise * 0.14 + camPull * 0.05 - impact * 0.10;
+  camera.position.z = camBase.z + scroll.p * -0.10 + camPull * 0.50 - impact * 0.55;
+  const targetY = camTarget.y + camRise * 0.17;
+  camera.lookAt(
+    lerp(camTarget.x, 0.0, impact),
+    lerp(targetY, 0.16, impact),
+    lerp(camTarget.z, -0.60, impact),
+  );
+
+  composer.render();
+}
+</script>
+</body>
+</html>
