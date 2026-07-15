@@ -74,14 +74,6 @@ Scrolling drives a damped cinematic choreography through seven acts:
 - **Blender** — katana, saya, stand and rock modeled from the real sword; HDRI baked from the scene itself
 - The blade feeds its albedo into its roughness map, so the bright hamon catches light differently than the folded steel around it
 
-## Run locally
-
-```bash
-node server.js
-```
-
-Then open [http://localhost:8765](http://localhost:8765). No build step, no dependencies to install.
-
 ---
 
 <div align="center">
