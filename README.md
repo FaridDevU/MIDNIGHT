@@ -18,4 +18,6 @@ Then open http://localhost:8765.
 - GSAP + ScrollTrigger + Lenis (damped scroll choreography)
 - Models authored in Blender, HDRI baked from the scene itself
 
-© 2026 — All rights reserved.
+## License
+
+© 2026 FaridDevU — **All rights reserved.** Proprietary license: no copying, no derivatives, no redistribution, no reuse of any part (code, models, shaders, design) without written permission. See [LICENSE](LICENSE).
