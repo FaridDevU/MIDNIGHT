@@ -76,6 +76,20 @@ Scrolling drives a damped cinematic choreography through seven acts:
 
 ---
 
+## Forged on humble steel
+
+Everything here — the modeling, the baking, the real-time bloom and fire — was made on a mid-range machine with a GPU from 2017:
+
+| Part | Spec |
+|---|---|
+| **GPU** | AMD Radeon RX 580 2048SP · 8 GB (Polaris, 2017) |
+| **CPU** | AMD Ryzen 5 7600X · 6 cores / 12 threads |
+| **RAM** | 32 GB |
+
+No RTX, no ray tracing, no render farm. If it runs smooth here, it runs smooth anywhere.
+
+---
+
 <div align="center">
 
 ## License
