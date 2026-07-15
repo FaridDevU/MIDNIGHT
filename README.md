@@ -66,6 +66,14 @@ Scrolling drives a damped cinematic choreography through seven acts:
 - **Blender** — katana, saya, stand and rock modeled from the real sword; HDRI baked from the scene itself
 - The blade feeds its albedo into its roughness map, so the bright hamon catches light differently than the folded steel around it
 
+<div align="center">
+
+*Where it all starts — the scene taking shape in Blender:*
+
+![Modeling the scene in Blender](docs/blender-viewport.png)
+
+</div>
+
 ## Run locally
 
 ```bash
