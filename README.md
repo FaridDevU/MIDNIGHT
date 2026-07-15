@@ -32,6 +32,14 @@ This is what hangs above my desk:
 
 So I modeled her in Blender, gave her a legend, and built her a shrine on the web. Every scroll of the page is a chapter of her story.
 
+<div align="center">
+
+*From the wall to the viewport — the scene taking shape in Blender:*
+
+![Modeling the scene in Blender](docs/blender-viewport.png)
+
+</div>
+
 ---
 
 ## The experience
@@ -65,14 +73,6 @@ Scrolling drives a damped cinematic choreography through seven acts:
 - **GSAP ScrollTrigger + Lenis** — damped scroll choreography; the scrollbar is the timeline
 - **Blender** — katana, saya, stand and rock modeled from the real sword; HDRI baked from the scene itself
 - The blade feeds its albedo into its roughness map, so the bright hamon catches light differently than the folded steel around it
-
-<div align="center">
-
-*Where it all starts — the scene taking shape in Blender:*
-
-![Modeling the scene in Blender](docs/blender-viewport.png)
-
-</div>
 
 ## Run locally
 
